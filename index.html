@@ -575,6 +575,7 @@
   svg { flex-shrink: 0; }
   button { font-family: inherit; }
 </style>
+<base target="_blank">
 </head>
 <body>
  
@@ -849,8 +850,8 @@
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
-const WORKER_URL = 'https://dasbord.122007aboudiii.workers.dev'; // ضع رابط Worker الخاص بك
-const CLIENT_ID  = '1356316450616508657';                      // ضع Client ID هنا
+const WORKER_URL = 'https://dasbord.122007aboudiii.workers.dev'; // ← غيّر هذا الرابط إلى Worker الخاص بك
+const CLIENT_ID  = '1356316450616508657';                      // ← غيّر هذا إلى Client ID من Discord Developer Portal
  
 const state = {
   token: localStorage.getItem('discord_token'),
@@ -1044,7 +1045,7 @@ function loginWithDiscord() {
   crypto.getRandomValues(stateArr);
   const oauthState = Array.from(stateArr, d=>d.toString(16).padStart(2,'0')).join('');
   sessionStorage.setItem('oauth_state', oauthState);
-  const redirect = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
+  const redirect = encodeURIComponent(window.location.origin + window.location.pathname);
   window.location.href = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${redirect}&response_type=code&scope=identify%20guilds&state=${oauthState}`;
 }
  
@@ -1086,7 +1087,11 @@ function updateUserUI() {
 // GUILDS
 // ═══════════════════════════════════════════════════════════════
 function fetchGuilds() {
-  if(!state.token && !state.user) { loadDemoData(); return; }
+  if(!state.token) { showToast('يرجى تسجيل الدخول أولاً', 'error'); showView('hero-view'); return; }
+  if(WORKER_URL.includes('122007aboudiii') || !WORKER_URL.startsWith('http')) {
+    showToast('⚠️ Worker URL غير معدّل — عدّل الرابط في الكود', 'error');
+    return;
+  }
   showLoading();
   fetch(`${WORKER_URL}/guilds`, { headers:{ Authorization:`Bearer ${state.token}` } })
     .then(r=>r.json())
@@ -1095,7 +1100,7 @@ function fetchGuilds() {
       if(data.guilds){ state.guilds = data.guilds; renderGuilds(); }
       showView('guilds-view');
     })
-    .catch(()=>{ showToast('تعذّر الاتصال بالخادم — عرض بيانات تجريبية','warning'); loadDemoData(); })
+    .catch(()=>{ showToast('تعذّر الاتصال بالخادم — تأكد من Worker URL','error'); })
     .finally(hideLoading);
 }
  
@@ -1134,7 +1139,7 @@ function addBot(e, guildId) {
   e.stopPropagation();
   const oauthState = Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
   sessionStorage.setItem('oauth_state', oauthState);
-  const redirect = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
+  const redirect = encodeURIComponent(window.location.origin + window.location.pathname);
   window.location.href = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&integration_type=0&scope=bot&guild_id=${guildId}&disable_guild_select=true&redirect_uri=${redirect}&response_type=code&state=${oauthState}`;
 }
  
@@ -1147,6 +1152,12 @@ function openSettings(e, guildId) {
   if(!guild || !guild.isAdmin){ showToast('لا يمكنك التعديل على السيرفر و أنت عضو','error'); return; }
   state.currentGuild = guild;
   updateSettingsHeader();
+
+  if(WORKER_URL.includes('122007aboudiii') || !WORKER_URL.startsWith('http')) {
+    showToast('⚠️ Worker URL غير معدّل — عدّل الرابط في الكود', 'error');
+    return;
+  }
+
   showLoading();
  
   // Try to load from API, fallback to demo
@@ -1171,8 +1182,7 @@ function openSettings(e, guildId) {
     }
   })
   .catch(()=>{
-    showToast('تعذّر الاتصال — عرض بيانات تجريبية','warning');
-    loadDemoChannelsRoles();
+    showToast('تعذّر الاتصال بالخادم','error');
   })
   .finally(()=>{ hideLoading(); renderSettingsData(); showView('settings-view'); });
 }
@@ -1423,9 +1433,19 @@ function showToast(msg, type='info') {
 (function handleOAuth() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
+  const error = params.get('error');
+  const errorDesc = params.get('error_description');
   const retState = params.get('state');
   const savedState = sessionStorage.getItem('oauth_state');
   const guildId = params.get('guild_id');
+
+  // إذا Discord رجّع خطأ
+  if(error) {
+    showToast('خطأ من Discord: ' + (errorDesc || error), 'error');
+    window.history.replaceState({},'', window.location.pathname);
+    showView('hero-view');
+    return;
+  }
  
   if(code && !state.token) {
     if(!savedState || retState !== savedState){
@@ -1438,7 +1458,7 @@ function showToast(msg, type='info') {
     fetch(`${WORKER_URL}/auth/callback`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({code, redirectUri:window.location.href.split('?')[0].split('#')[0]})
+      body:JSON.stringify({code, redirectUri:window.location.origin + window.location.pathname})
     }).then(r=>r.json()).then(data=>{
       if(data.access_token){
         state.token = data.access_token;
@@ -1466,10 +1486,7 @@ function esc(str) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
  
-// Demo shortcut: click logo on hero = load demo
-document.querySelector('.nav-logo').addEventListener('click', ()=>{
-  if(!state.token && !state.user) { loadDemoData(); }
-});
+
 </script>
 </body>
 </html>
