@@ -1,1493 +1,603 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>FLX TICKET — داشبورد التذاكر</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;700;900&family=Fira+Code:wght@300;400&display=swap" rel="stylesheet"/>
-<style>
-  :root {
-    --bg: #0a080f;
-    --panel: #14111d;
-    --input: #1c1829;
-    --primary: #c026d3;
-    --primary-h: #a21caf;
-    --border: #2d2845;
-    --text: #f3f4f6;
-    --muted: #9ca3af;
-  }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { direction: rtl; scroll-behavior: smooth; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
-  }
- 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
- 
-  /* Canvas */
-  #matrix-canvas {
-    position: fixed; top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 0; pointer-events: auto;
-  }
- 
-  /* ── VIEWS ── */
-  .view { display: none; }
-  .view.active { display: block; }
- 
-  /* ── LOADING OVERLAY ── */
-  #loading-overlay {
-    position: fixed; inset: 0;
-    background: var(--bg);
-    z-index: 9999;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 20px;
-  }
-  #loading-overlay.show { display: flex; }
-  .loading-text {
-    display: flex; gap: 10px;
-  }
-  .loading-text span {
-    color: #fff;
-    font-family: 'Inter', sans-serif;
-    font-weight: 200;
-    font-size: 18px;
-    letter-spacing: 8px;
-    animation: blur-text 1.5s infinite linear alternate;
-  }
-  .loading-text span:nth-child(1){animation-delay:.0s}
-  .loading-text span:nth-child(2){animation-delay:.2s}
-  .loading-text span:nth-child(3){animation-delay:.4s}
-  .loading-text span:nth-child(4){animation-delay:.6s}
-  .loading-text span:nth-child(5){animation-delay:.8s}
-  .loading-text span:nth-child(6){animation-delay:1.0s}
-  .loading-text span:nth-child(7){animation-delay:1.2s}
-  @keyframes blur-text {
-    0%   { filter: blur(0px); opacity: 1; }
-    100% { filter: blur(4px); opacity: 0.4; }
-  }
- 
-  /* ── NAV ── */
-  nav {
-    position: fixed; top: 0; left: 0; right: 0;
-    z-index: 50;
-    height: 72px;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 5vw;
-    transition: background .4s, backdrop-filter .4s, border-color .4s;
-  }
-  nav.scrolled {
-    background: rgba(10,8,15,.95);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid rgba(192,38,211,.1);
-  }
-  .nav-logo {
-    display: flex; align-items: center; gap: 10px;
-    cursor: pointer; text-decoration: none;
-    color: var(--text); border: none; background: none;
-    font-size: 18px; font-family: 'Fira Code', monospace; font-weight: 400;
-    letter-spacing: -.5px; transition: opacity .2s;
-  }
-  .nav-logo:hover { opacity: .8; }
-  .nav-logo .primary { color: var(--primary); font-weight: 700; }
-  .cursor-svg {
-    width: 30px; height: 30px;
-    transform: rotate(-15deg);
-    animation: float-cursor 3.5s ease-in-out infinite;
-  }
-  @keyframes float-cursor {
-    0%,100% { transform: rotate(-15deg) translateY(0); }
-    50%      { transform: rotate(-15deg) translateY(-6px); }
-  }
-  .nav-right {
-    display: flex; align-items: center; gap: 12px;
-  }
-  .user-pill {
-    display: flex; align-items: center; gap: 8px;
-    padding: 4px 8px 4px 4px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-  }
-  .user-avatar {
-    width: 36px; height: 36px; border-radius: 50%;
-    border: 2px solid rgba(192,38,211,.4); padding: 2px;
-    object-fit: cover;
-  }
-  .user-name {
-    font-size: 13px; font-weight: 700;
-    color: var(--text); padding: 0 8px;
-  }
-  .icon-btn {
-    display: flex; align-items: center; justify-content: center;
-    width: 40px; height: 40px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    cursor: pointer; color: var(--muted);
-    transition: color .2s, border-color .2s;
-  }
-  .icon-btn:hover { color: var(--primary); border-color: var(--primary); }
-  .dropdown-menu {
-    position: absolute; top: calc(100% + 8px); left: 0;
-    width: 220px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-    z-index: 99;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5);
-    display: none;
-  }
-  .dropdown-menu.open { display: block; }
-  .dropdown-header {
-    padding: 8px 16px;
-    font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--muted);
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-  }
-  .dropdown-item {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 16px;
-    font-size: 13px; color: var(--text);
-    cursor: pointer; border: none; background: none;
-    width: 100%; text-align: right;
-    transition: background .2s;
-  }
-  .dropdown-item:hover { background: #1c1829; }
-  .dropdown-item.danger { color: #ef4444; }
-  .dropdown-item.danger:hover { background: rgba(239,68,68,.1); }
-  .dropdown-divider { border-top: 1px solid var(--border); margin: 4px 0; }
-  .theme-dot {
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    flex-shrink: 0;
-  }
-  .nav-dropdown-wrap { position: relative; }
- 
-  /* ── HERO ── */
-  #hero-view {
-    position: relative; z-index: 10;
-    height: 100vh;
-    display: flex; align-items: center; justify-content: center;
-    flex-direction: column; text-align: center;
-    padding: 20vh 5vw 8vh;
-  }
-  .hero-logo-wrap {
-    width: 112px; height: 112px;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 40px;
-    transform: rotate(-15deg);
-    animation: float-cursor 3.5s ease-in-out infinite;
-  }
-  .hero-title {
-    font-family: 'Fira Code', monospace;
-    font-weight: 400;
-    font-size: clamp(48px, 6vw, 96px);
-    letter-spacing: -3px;
-    text-shadow: 0 4px 24px rgba(0,0,0,.8), 0 0 60px rgba(192,38,211,.3);
-    margin-bottom: clamp(24px,3vw,40px);
-  }
-  .hero-sub {
-    font-size: clamp(16px,1.8vw,22px);
-    font-weight: 400;
-    color: var(--text);
-    margin-bottom: 10px;
-    text-shadow: 0 2px 12px rgba(0,0,0,.6);
-  }
-  .hero-sub2 {
-    font-size: clamp(14px,1.4vw,18px);
-    font-weight: 300;
-    color: var(--muted);
-    margin-bottom: 48px;
-    text-shadow: 0 2px 12px rgba(0,0,0,.6);
-  }
-  /* Liquid glass button */
-  .liquid-btn {
-    position: relative; display: inline-flex;
-    align-items: center; justify-content: center;
-    padding: 16px 40px; border-radius: 999px;
-    border: 1px solid rgba(255,255,255,.12);
-    background: rgba(255,255,255,.04);
-    backdrop-filter: blur(12px);
-    color: #fff;
-    font-family: 'Fira Code', monospace;
-    font-size: 14px; font-weight: 300; letter-spacing: .5px;
-    cursor: pointer;
-    overflow: hidden;
-    transition: all .4s cubic-bezier(.16,1,.3,1);
-  }
-  .liquid-btn::before {
-    content: '';
-    position: absolute; inset: 0; border-radius: inherit;
-    background: radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.08) 0%, transparent 60%);
-  }
-  .liquid-btn:hover {
-    border-color: rgba(255,255,255,.25);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(192,38,211,.2);
-  }
- 
-  /* ── GUILDS VIEW ── */
-  #guilds-view {
-    position: relative; z-index: 10;
-    padding-top: 90px; padding-bottom: 48px;
-  }
-  .max-w {
-    max-width: 1200px; margin: 0 auto;
-    padding: 0 clamp(16px,4vw,32px);
-  }
-  .panel-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    padding: 28px 32px;
-  }
-  .section-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 32px;
-  }
-  .section-header h2 {
-    font-size: 28px; font-weight: 900; color: var(--text);
-  }
-  .section-header p {
-    font-size: 15px; font-weight: 500; color: var(--muted); margin-top: 4px;
-  }
-  .guilds-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px,1fr));
-    gap: 20px;
-    margin-top: 28px;
-  }
-  .guild-card {
-    background: var(--input);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 20px;
-    cursor: pointer;
-    transition: border-color .2s, transform .2s, box-shadow .2s;
-    display: flex; flex-direction: column; gap: 12px;
-  }
-  .guild-card:hover {
-    border-color: rgba(192,38,211,.5);
-    transform: translateY(-3px);
-    box-shadow: 0 8px 30px rgba(192,38,211,.12);
-  }
-  .guild-card.no-bot { opacity: .7; }
-  .guild-top { display: flex; align-items: center; gap: 12px; }
-  .guild-icon {
-    width: 52px; height: 52px;
-    border-radius: 14px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 900;
-    flex-shrink: 0;
-    overflow: hidden;
-    background: rgba(192,38,211,.1);
-    color: var(--primary);
-    border: 2px solid rgba(192,38,211,.3);
-  }
-  .guild-icon img { width: 100%; height: 100%; object-fit: cover; }
-  .guild-name {
-    font-size: 16px; font-weight: 700; color: var(--text);
-    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 3px 10px; border-radius: 8px;
-    font-size: 12px; font-weight: 700;
-  }
-  .badge-owner {
-    background: rgba(234,179,8,.1); color: #eab308;
-    border: 1px solid rgba(234,179,8,.2);
-  }
-  .badge-admin {
-    background: rgba(192,38,211,.1); color: var(--primary);
-    border: 1px solid rgba(192,38,211,.2);
-  }
-  .guild-footer {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-top: 4px;
-  }
-  .btn-small {
-    padding: 7px 14px; border-radius: 10px;
-    border: 1px solid; font-size: 12px; font-weight: 700;
-    cursor: pointer; transition: all .2s;
-  }
-  .btn-primary {
-    background: rgba(192,38,211,.1);
-    border-color: rgba(192,38,211,.3);
-    color: var(--primary);
-  }
-  .btn-primary:hover { background: rgba(192,38,211,.2); }
-  .btn-outline {
-    background: transparent;
-    border-color: var(--border);
-    color: var(--muted);
-  }
-  .btn-outline:hover { border-color: var(--muted); color: var(--text); }
-  .empty-state {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 80px 0; gap: 20px;
-  }
-  .empty-state .big-logo {
-    width: 72px; height: 72px;
-    animation: float-cursor 3.5s ease-in-out infinite;
-    transform: rotate(-15deg);
-    filter: drop-shadow(0 0 12px var(--primary));
-  }
-  .empty-label { font-size: 22px; font-weight: 900; color: var(--primary); }
- 
-  /* ── SETTINGS VIEW ── */
-  #settings-view {
-    position: relative; z-index: 10;
-    padding-top: 90px; padding-bottom: 64px;
-  }
-  .settings-header {
-    display: flex; align-items: center; gap: 20px;
-    margin-bottom: 28px;
-  }
-  .back-btn {
-    width: 48px; height: 48px; border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: var(--muted);
-    flex-shrink: 0; transition: color .2s, border-color .2s;
-  }
-  .back-btn:hover { color: var(--text); border-color: var(--muted); }
-  .guild-info { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
-  .guild-icon-lg {
-    width: 64px; height: 64px;
-    border-radius: 18px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 24px; font-weight: 900;
-    flex-shrink: 0; overflow: hidden;
-    background: rgba(192,38,211,.1); color: var(--primary);
-    border: 2px solid rgba(192,38,211,.5);
-  }
-  .guild-info-text h3 { font-size: 22px; font-weight: 900; }
-  .guild-info-text p { font-size: 13px; color: var(--muted); margin-top: 2px; }
- 
-  /* Tabs */
-  .tabs {
-    display: flex; gap: 4px;
-    background: var(--input); border-radius: 14px; padding: 4px;
-    margin-bottom: 24px; flex-wrap: wrap;
-  }
-  .tab {
-    flex: 1; min-width: 100px;
-    padding: 10px 16px; border-radius: 10px;
-    border: none; background: none;
-    font-size: 13px; font-weight: 600;
-    color: var(--muted); cursor: pointer;
-    transition: background .2s, color .2s;
-    text-align: center;
-  }
-  .tab.active {
-    background: var(--panel);
-    color: var(--primary);
-    box-shadow: 0 2px 8px rgba(0,0,0,.3);
-  }
-  .tab:not(.active):hover { color: var(--text); }
- 
-  /* Settings card */
-  .settings-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 20px; padding: 24px;
-    margin-bottom: 20px;
-  }
-  .settings-card h4 {
-    font-size: 15px; font-weight: 700; color: var(--text);
-    margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
-  }
-  .settings-card h4 svg { color: var(--primary); }
-  .form-label {
-    font-size: 12px; font-weight: 700; color: var(--muted);
-    margin-bottom: 6px; display: block;
-    text-transform: uppercase; letter-spacing: .5px;
-  }
-  .form-select, .form-input, .form-textarea {
-    width: 100%; padding: 10px 14px;
-    background: var(--input); border: 1px solid var(--border);
-    border-radius: 12px; color: var(--text);
-    font-size: 14px; font-family: 'Inter', sans-serif;
-    transition: border-color .2s;
-    outline: none;
-  }
-  .form-select:focus, .form-input:focus, .form-textarea:focus {
-    border-color: rgba(192,38,211,.5);
-  }
-  .form-textarea { min-height: 80px; resize: vertical; }
-  .form-select option { background: var(--panel); }
-  .field-wrap { margin-bottom: 14px; }
-  .toggle-row {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 0;
-  }
-  .toggle-label { font-size: 14px; font-weight: 500; color: var(--text); }
-  .toggle-wrap { display: flex; align-items: center; gap: 10px; }
-  /* Toggle switch */
-  .toggle { position: relative; width: 44px; height: 24px; }
-  .toggle input { display: none; }
-  .toggle-track {
-    position: absolute; inset: 0;
-    background: var(--input); border-radius: 99px;
-    border: 1px solid var(--border); cursor: pointer;
-    transition: background .2s, border-color .2s;
-  }
-  .toggle-thumb {
-    position: absolute; top: 3px; right: 3px;
-    width: 16px; height: 16px; border-radius: 50%;
-    background: var(--muted);
-    transition: transform .2s, background .2s;
-  }
-  .toggle input:checked ~ .toggle-track { background: rgba(192,38,211,.2); border-color: var(--primary); }
-  .toggle input:checked ~ .toggle-track .toggle-thumb {
-    transform: translateX(-20px); background: var(--primary);
-  }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  @media(max-width:600px){ .grid-2 { grid-template-columns: 1fr; } }
-  .roles-wrap {
-    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;
-  }
-  .role-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 12px; border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--input); font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: border-color .2s, background .2s;
-  }
-  .role-chip.selected {
-    border-color: var(--primary);
-    background: rgba(192,38,211,.1);
-    color: var(--primary);
-  }
-  .role-dot { width: 8px; height: 8px; border-radius: 50%; }
- 
-  /* Ticket options */
-  .option-item {
-    border: 1px solid var(--border); border-radius: 16px;
-    overflow: hidden; margin-bottom: 12px;
-    transition: border-color .2s;
-  }
-  .option-item.enabled { border-color: rgba(192,38,211,.4); }
-  .option-header {
-    display: flex; align-items: center; gap: 12px;
-    padding: 14px 18px; cursor: pointer;
-    background: var(--input);
-    user-select: none;
-  }
-  .option-emoji { font-size: 20px; }
-  .option-name { flex: 1; font-weight: 700; font-size: 14px; }
-  .option-body {
-    padding: 16px 18px;
-    background: var(--panel);
-    border-top: 1px solid var(--border);
-    display: none;
-  }
-  .option-body.open { display: block; }
-  .color-swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-  .color-swatch {
-    width: 28px; height: 28px; border-radius: 8px;
-    cursor: pointer; border: 2px solid transparent;
-    transition: border-color .2s, transform .2s;
-  }
-  .color-swatch.selected { border-color: #fff; transform: scale(1.15); }
- 
-  /* Actions bar */
-  .actions-bar {
-    display: flex; gap: 12px; flex-wrap: wrap;
-    margin-top: 28px;
-  }
-  .btn-lg {
-    padding: 13px 28px; border-radius: 14px;
-    font-size: 14px; font-weight: 700;
-    cursor: pointer; border: 1px solid; transition: all .2s;
-  }
-  .btn-save {
-    background: rgba(192,38,211,.15);
-    border-color: rgba(192,38,211,.4);
-    color: var(--primary);
-  }
-  .btn-save:hover { background: rgba(192,38,211,.25); }
-  .btn-send {
-    background: var(--input); border-color: var(--border); color: var(--text);
-  }
-  .btn-send:hover { border-color: var(--primary); color: var(--primary); }
- 
-  /* ── TOAST ── */
-  #toast-wrap {
-    position: fixed; bottom: 24px; left: 50%;
-    transform: translateX(-50%);
-    z-index: 99999;
-    display: flex; flex-direction: column; gap: 10px;
-    pointer-events: none;
-    width: 360px; max-width: 90vw;
-    align-items: center;
-  }
-  .toast {
-    padding: 14px 20px;
-    border-radius: 14px;
-    border: 1px solid;
-    font-size: 14px; font-weight: 600;
-    pointer-events: auto;
-    animation: toast-in .3s ease forwards;
-    display: flex; align-items: center; gap: 10px;
-    max-width: 100%; backdrop-filter: blur(8px);
-  }
-  .toast.success {
-    background: rgba(22,163,74,.15); border-color: rgba(22,163,74,.3); color: #86efac;
-  }
-  .toast.error {
-    background: rgba(220,38,38,.15); border-color: rgba(220,38,38,.3); color: #fca5a5;
-  }
-  .toast.warning {
-    background: rgba(234,179,8,.15); border-color: rgba(234,179,8,.3); color: #fde68a;
-  }
-  .toast.info {
-    background: rgba(192,38,211,.15); border-color: rgba(192,38,211,.3); color: #e879f9;
-  }
-  @keyframes toast-in {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
- 
-  /* Utility */
-  .divider { border-top: 1px solid var(--border); margin: 16px 0; }
-  .text-primary { color: var(--primary); }
-  .font-mono { font-family: 'Fira Code', monospace; }
-  svg { flex-shrink: 0; }
-  button { font-family: inherit; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فريقنا - علاوي & ياسين</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background Particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            animation: float 15s infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 60px 20px 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf, #ff006e);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradient-shift 3s ease infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% center; }
+            50% { background-position: 100% center; }
+            100% { background-position: 0% center; }
+        }
+
+        .header p {
+            font-size: 1.3rem;
+            color: rgba(255,255,255,0.7);
+            font-weight: 300;
+        }
+
+        .divider {
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(90deg, #00d4ff, #ff006e);
+            margin: 20px auto;
+            border-radius: 2px;
+        }
+
+        /* Cards Container */
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            gap: 40px;
+            padding: 40px 20px 80px;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Profile Card */
+        .card {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 30px;
+            padding: 40px 30px;
+            width: 380px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .card:hover {
+            transform: translateY(-15px) scale(1.02);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.4), 0 0 60px rgba(0,212,255,0.1);
+            border-color: rgba(0,212,255,0.3);
+        }
+
+        /* Avatar */
+        .avatar-container {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 25px;
+        }
+
+        .avatar-ring {
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, #00d4ff, #7b2cbf, #ff006e, #00d4ff);
+            animation: spin 4s linear infinite;
+            opacity: 0.8;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .avatar {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid rgba(255,255,255,0.1);
+            position: relative;
+            z-index: 2;
+            transition: transform 0.3s;
+        }
+
+        .card:hover .avatar {
+            transform: scale(1.05);
+        }
+
+        .status-badge {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 24px;
+            height: 24px;
+            background: #00ff88;
+            border-radius: 50%;
+            border: 3px solid #1a1a2e;
+            z-index: 3;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(0,255,136,0); }
+        }
+
+        /* Name & Title */
+        .name {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .title {
+            font-size: 1.1rem;
+            color: #00d4ff;
+            font-weight: 500;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+            display: inline-block;
+            padding: 5px 20px;
+            background: rgba(0,212,255,0.1);
+            border-radius: 20px;
+            border: 1px solid rgba(0,212,255,0.2);
+        }
+
+        .bio {
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.6);
+            line-height: 1.8;
+            margin-bottom: 25px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Skills */
+        .skills-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: rgba(255,255,255,0.9);
+            position: relative;
+            z-index: 1;
+        }
+
+        .skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 25px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .skill-tag {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.8);
+            transition: all 0.3s;
+            cursor: default;
+        }
+
+        .skill-tag:hover {
+            background: rgba(0,212,255,0.2);
+            border-color: #00d4ff;
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        /* Progress Bars */
+        .progress-container {
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .progress-item {
+            margin-bottom: 12px;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            color: rgba(255,255,255,0.7);
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            transition: width 1.5s ease;
+            position: relative;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 20px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-20px); }
+            100% { transform: translateX(20px); }
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255,255,255,0.4);
+            font-size: 0.9rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .header h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* Glitch Effect on Name Hover */
+        .name:hover {
+            animation: glitch 0.3s ease;
+        }
+
+        @keyframes glitch {
+            0% { text-shadow: 2px 0 #ff006e, -2px 0 #00d4ff; }
+            25% { text-shadow: -2px 0 #ff006e, 2px 0 #00d4ff; }
+            50% { text-shadow: 2px 0 #ff006e, -2px 0 #00d4ff; }
+            75% { text-shadow: -2px 0 #ff006e, 2px 0 #00d4ff; }
+            100% { text-shadow: none; }
+        }
+
+        /* Card specific colors */
+        .card-1 .avatar-ring {
+            background: conic-gradient(from 0deg, #00d4ff, #7b2cbf, #ff006e, #00d4ff);
+        }
+
+        .card-2 .avatar-ring {
+            background: conic-gradient(from 0deg, #ff006e, #fb5607, #ffbe0b, #ff006e);
+        }
+
+        .card-2 .title {
+            color: #ff006e;
+            background: rgba(255,0,110,0.1);
+            border-color: rgba(255,0,110,0.2);
+        }
+
+        .card-2 .progress-fill {
+            background: linear-gradient(90deg, #ff006e, #fb5607);
+        }
+
+        .card-2 .skill-tag:hover {
+            background: rgba(255,0,110,0.2);
+            border-color: #ff006e;
+        }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.8s ease;
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Typing effect */
+        .typing-text {
+            overflow: hidden;
+            white-space: nowrap;
+            border-right: 3px solid #00d4ff;
+            animation: typing 3s steps(30) forwards, blink 0.7s step-end infinite;
+            display: inline-block;
+        }
+
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        @keyframes blink {
+            50% { border-color: transparent; }
+        }
+    </style>
 <base target="_blank">
 </head>
 <body>
- 
-<!-- Matrix Canvas -->
-<canvas id="matrix-canvas"></canvas>
- 
-<!-- Loading overlay -->
-<div id="loading-overlay">
-  <div class="loading-text">
-    <span>F</span><span>L</span><span>X</span><span>&nbsp;</span><span>T</span><span>I</span><span>X</span>
-  </div>
-</div>
- 
-<!-- NAVIGATION -->
-<nav id="main-nav">
-  <button class="nav-logo" onclick="goHome()">
-    <div class="cursor-svg">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-           style="width:100%;height:100%;filter:drop-shadow(0 0 8px #c026d3)">
-        <path d="M4.5 3.5L19 10.5L12.5 13L16.5 19L14 20.5L10 14.5L5.5 18L4.5 3.5Z"
-              fill="#0a080f" stroke="#c026d3" stroke-width="2.5" stroke-linejoin="round"/>
-        <circle cx="4.5" cy="3.5" r="2" fill="white"/>
-      </svg>
-    </div>
-    FLX<span class="primary">TICKET</span>
-  </button>
- 
-  <div class="nav-right" id="nav-user-area" style="display:none">
-    <!-- settings dropdown -->
-    <div class="nav-dropdown-wrap">
-      <button class="icon-btn" onclick="toggleDropdown()" title="الإعدادات">
-        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-      </button>
-      <div class="dropdown-menu" id="settings-dropdown">
-        <div class="dropdown-header">اللغة والمظهر</div>
-        <button class="dropdown-item" onclick="showToast('اللغات الأخرى ستتوفر قريباً!','warning');closeDropdown()">
-          <span>🌐 اللغة</span>
-          <span style="font-size:11px;color:var(--muted)">العربية</span>
-        </button>
-        <div class="dropdown-divider"></div>
-        <button class="dropdown-item" onclick="setTheme('purple','#0a080f','#c026d3')">
-          <div class="theme-dot" style="background:#0a080f;border-color:#c026d3"></div>
-          بنفسجي (افتراضي)
-        </button>
-        <button class="dropdown-item" onclick="setTheme('ocean','#080d14','#2563eb')">
-          <div class="theme-dot" style="background:#080d14;border-color:#2563eb"></div>
-          المحيط الأزرق
-        </button>
-        <button class="dropdown-item" onclick="setTheme('green','#080f0c','#16a34a')">
-          <div class="theme-dot" style="background:#080f0c;border-color:#16a34a"></div>
-          الزمرد الأخضر
-        </button>
-        <button class="dropdown-item" onclick="setTheme('rose','#0f080b','#e11d48')">
-          <div class="theme-dot" style="background:#0f080b;border-color:#e11d48"></div>
-          الوردي الفاخر
-        </button>
-        <div class="dropdown-divider"></div>
-        <button class="dropdown-item danger" onclick="logout()">
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-          </svg>
-          تسجيل الخروج
-        </button>
-      </div>
-    </div>
- 
-    <!-- user pill -->
-    <div class="user-pill">
-      <img id="nav-avatar" class="user-avatar" src="" alt=""/>
-      <span class="user-name" id="nav-username"></span>
-    </div>
-  </div>
-</nav>
- 
-<!-- ══════════════════ HERO VIEW ══════════════════ -->
-<div id="hero-view" class="view active">
-  <div class="hero-logo-wrap">
-    <svg viewBox="0 0 24 24" fill="none" style="width:100%;height:100%;filter:drop-shadow(0 0 15px #c026d3) drop-shadow(0 0 40px #c026d3)">
-      <path d="M4.5 3.5L19 10.5L12.5 13L16.5 19L14 20.5L10 14.5L5.5 18L4.5 3.5Z"
-            fill="#0a080f" stroke="#c026d3" stroke-width="2" stroke-linejoin="round"/>
-      <circle cx="4.5" cy="3.5" r="2" fill="white" style="filter:drop-shadow(0 0 10px white)"/>
-    </svg>
-  </div>
-  <h1 class="hero-title font-mono">FLX TICKET</h1>
-  <p class="hero-sub">المنصة الأذكى والأسهل لإدارة تذاكر السيرفر</p>
-  <p class="hero-sub2">تخصيص الخيارات بلمسة واحدة</p>
-  <button class="liquid-btn" onclick="loginWithDiscord()">تسجيل الدخول بـ Discord</button>
-</div>
- 
-<!-- ══════════════════ GUILDS VIEW ══════════════════ -->
-<div id="guilds-view" class="view">
-  <div class="max-w">
-    <div class="panel-card section-header">
-      <div>
-        <h2>سيرفراتك</h2>
-        <p>ابدأ بتخصيص أنظمة التذاكر لسيرفراتك فوراً.</p>
-      </div>
-      <button class="icon-btn" onclick="fetchGuilds()" title="تحديث">
-        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-        </svg>
-      </button>
-    </div>
- 
-    <div id="guilds-grid" class="guilds-grid">
-      <!-- cards injected by JS -->
-    </div>
-    <div id="guilds-empty" class="empty-state">
-      <div class="big-logo">
-        <svg viewBox="0 0 24 24" fill="none" style="width:100%;height:100%;filter:drop-shadow(0 0 10px #c026d3)">
-          <path d="M4.5 3.5L19 10.5L12.5 13L16.5 19L14 20.5L10 14.5L5.5 18L4.5 3.5Z"
-                fill="#0a080f" stroke="#c026d3" stroke-width="2" stroke-linejoin="round"/>
-          <circle cx="4.5" cy="3.5" r="2" fill="white"/>
-        </svg>
-      </div>
-      <div class="empty-label">جاري جلب السيرفرات...</div>
-    </div>
-  </div>
-</div>
- 
-<!-- ══════════════════ SETTINGS VIEW ══════════════════ -->
-<div id="settings-view" class="view">
-  <div class="max-w">
+    <!-- Particles Background -->
+    <div class="particles" id="particles"></div>
+
     <!-- Header -->
-    <div class="panel-card settings-header">
-      <button class="back-btn" onclick="goHome()">
-        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-             style="transform:scaleX(-1)">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
-        </svg>
-      </button>
-      <div class="guild-info">
-        <div class="guild-icon-lg" id="s-guild-icon">?</div>
-        <div class="guild-info-text">
-          <h3 id="s-guild-name">السيرفر</h3>
-          <p id="s-guild-id"></p>
-        </div>
-      </div>
-      <div class="actions-bar" style="margin-top:0">
-        <button class="btn-lg btn-save" onclick="saveSettings()">💾 حفظ الإعدادات</button>
-        <button class="btn-lg btn-send" onclick="sendPanel()">📨 إرسال Panel</button>
-      </div>
+    <div class="header">
+        <h1>فريق التطوير</h1>
+        <div class="divider"></div>
+        <p>نحو الإبداع والتميز في عالم التقنية</p>
     </div>
- 
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab('main',this)">⚙️ الإعدادات الأساسية</button>
-      <button class="tab" onclick="switchTab('options',this)">🎫 الأزرار والخيارات</button>
-      <button class="tab" onclick="switchTab('panel',this)">📋 تعديل Panel</button>
-    </div>
- 
-    <!-- TAB: main -->
-    <div id="tab-main">
-      <div class="settings-card">
-        <h4>
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-          </svg>
-          إعدادات القناة
-        </h4>
-        <div class="grid-2">
-          <div class="field-wrap">
-            <label class="form-label">الكاتيجوري</label>
-            <select class="form-select" id="catSelect">
-              <option value="">-- اختر كاتيجوري --</option>
-            </select>
-          </div>
-          <div class="field-wrap">
-            <label class="form-label">قناة السجلات</label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select class="form-select" id="logSelect" style="flex:1">
-                <option value="">-- اختر قناة --</option>
-              </select>
-              <label class="toggle" title="تفعيل السجلات">
-                <input type="checkbox" id="logToggle" checked/>
-                <div class="toggle-track"><div class="toggle-thumb"></div></div>
-              </label>
+
+    <!-- Cards Container -->
+    <div class="container">
+
+        <!-- علاوي Card -->
+        <div class="card card-1 reveal">
+            <div class="avatar-container">
+                <div class="avatar-ring"></div>
+                <img src="https://timg.eu.cc/-Pov6omg2T.jpg" alt="علاوي" class="avatar">
+                <div class="status-badge"></div>
             </div>
-          </div>
-          <div class="field-wrap">
-            <label class="form-label">قناة التقييمات</label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select class="form-select" id="ratingSelect" style="flex:1">
-                <option value="">-- اختر قناة --</option>
-              </select>
-              <label class="toggle" title="تفعيل التقييمات">
-                <input type="checkbox" id="ratingToggle" checked/>
-                <div class="toggle-track"><div class="toggle-thumb"></div></div>
-              </label>
-            </div>
-          </div>
-          <div class="field-wrap">
-            <label class="form-label">قناة Panel</label>
-            <select class="form-select" id="panelChannelSelect">
-              <option value="">-- اختر قناة --</option>
-            </select>
-          </div>
-        </div>
-      </div>
- 
-      <div class="settings-card">
-        <h4>
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/>
-          </svg>
-          أدوار الدعم الفني
-        </h4>
-        <div class="roles-wrap" id="roles-wrap">
-          <span style="color:var(--muted);font-size:13px">جاري تحميل الأدوار...</span>
-        </div>
-      </div>
-    </div>
- 
-    <!-- TAB: options -->
-    <div id="tab-options" style="display:none">
-      <div class="settings-card">
-        <h4>🎫 خيارات التذاكر</h4>
-        <div id="options-list"></div>
-      </div>
-    </div>
- 
-    <!-- TAB: panel -->
-    <div id="tab-panel" style="display:none">
-      <div class="settings-card">
-        <h4>📋 إعدادات Panel</h4>
-        <div class="field-wrap">
-          <label class="form-label">عنوان Panel</label>
-          <input class="form-input" id="panelTitleInput" placeholder="تذاكر الدعم الفني" maxlength="256"/>
-        </div>
-        <div class="field-wrap">
-          <label class="form-label">وصف Panel</label>
-          <textarea class="form-textarea" id="panelDescInput"
-            placeholder="لفتح تذكرة الرجاء الضغط على الخيار المناسب من الأزرار بالأسفل." maxlength="2000"></textarea>
-        </div>
-        <!-- Preview -->
-        <div style="margin-top:20px">
-          <label class="form-label">معاينة Panel</label>
-          <div id="panel-preview" style="
-            background:#36393f;border-radius:16px;padding:20px;
-            border-left:4px solid var(--primary);
-          ">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-              <div style="width:36px;height:36px;border-radius:50%;background:rgba(192,38,211,.3);
-                display:flex;align-items:center;justify-content:center;font-size:18px">🤖</div>
-              <span style="font-weight:700;font-size:14px;color:#fff">FLX TICKET</span>
-              <span style="font-size:11px;color:#99aab5;background:#5865F2;padding:2px 6px;border-radius:4px">بوت</span>
-            </div>
-            <h3 id="preview-title" style="color:#fff;font-size:18px;margin-bottom:8px">تذاكر الدعم الفني</h3>
-            <p id="preview-desc" style="color:#99aab5;font-size:14px;line-height:1.6">
-              لفتح تذكرة الرجاء الضغط على الخيار المناسب من الأزرار بالأسفل.
+
+            <h2 class="name">علاوي</h2>
+            <div class="title">مطور برمجيات</div>
+
+            <p class="bio">
+                مطور شغوف ببناء تطبيقات الويب والموبايل بأحدث التقنيات. يمتلك خبرة واسعة في تطوير الحلول البرمجية المبتكرة.
             </p>
-            <div id="preview-btns" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px"></div>
-          </div>
+
+            <div class="skills-title">المهارات التقنية</div>
+            <div class="skills">
+                <span class="skill-tag">JavaScript</span>
+                <span class="skill-tag">React</span>
+                <span class="skill-tag">Node.js</span>
+                <span class="skill-tag">Python</span>
+                <span class="skill-tag">MongoDB</span>
+                <span class="skill-tag">Docker</span>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>تطوير الويب</span>
+                        <span>95%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%" data-width="95%"></div>
+                    </div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>تطوير التطبيقات</span>
+                        <span>88%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%" data-width="88%"></div>
+                    </div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>قواعد البيانات</span>
+                        <span>92%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%" data-width="92%"></div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
+
+        <!-- ياسين Card -->
+        <div class="card card-2 reveal">
+            <div class="avatar-container">
+                <div class="avatar-ring"></div>
+                <img src="https://i.ibb.co/spQgfLX9/temp-1780859692186-0-49496889379715214.png" alt="ياسين" class="avatar">
+                <div class="status-badge"></div>
+            </div>
+
+            <h2 class="name">ياسين</h2>
+            <div class="title">مطور Full-Stack</div>
+
+            <p class="bio">
+                مطور Full-Stack متخصص في بناء أنظمة قوية وقابلة للتوسع. يجمع بين الإبداع والكفاءة في كل مشروع يعمل عليه.
+            </p>
+
+            <div class="skills-title">المهارات التقنية</div>
+            <div class="skills">
+                <span class="skill-tag">Vue.js</span>
+                <span class="skill-tag">Angular</span>
+                <span class="skill-tag">PHP</span>
+                <span class="skill-tag">Laravel</span>
+                <span class="skill-tag">AWS</span>
+                <span class="skill-tag">AI/ML</span>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>تطوير الواجهات</span>
+                        <span>93%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%" data-width="93%"></div>
+                    </div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>الخلفية Backend</span>
+                        <span>90%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%" data-width="90%"></div>
+                    </div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>الذكاء الاصطناعي</span>
+                        <span>85%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%" data-width="85%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
-  </div>
-</div>
- 
-<!-- Toast container -->
-<div id="toast-wrap"></div>
- 
-<script>
-// ═══════════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════════
-const WORKER_URL =  'https://6721.younannoor8.workers.dev/'; // ← غيّر هذا الرابط إلى Worker الخاص بك
-const CLIENT_ID  = '1502857063901036596';                      // ← غيّر هذا إلى Client ID من Discord Developer Portal
- 
-const state = {
-  token: localStorage.getItem('discord_token'),
-  user: null,
-  guilds: [],
-  currentGuild: null,
-  channels: [],
-  roles: [],
-  ticketOptions: defaultTicketOptions(),
-  selectedRoles: [],
-  settings: null,
-};
- 
-function defaultTicketOptions() {
-  return [
-    { label:'دعم عام', enabled:true, color:'Primary', emoji:'🎫', openMessage:'مرحباً! سيتواصل معك أحد أعضاء الدعم قريباً.', supportRoles:[] },
-    { label:'مشكلة تقنية', enabled:true, color:'Danger', emoji:'⚠️', openMessage:'يرجى وصف المشكلة التقنية بالتفصيل.', supportRoles:[] },
-    { label:'استفسار مالي', enabled:false, color:'Success', emoji:'💳', openMessage:'يرجى ذكر تفاصيل الاستفسار المالي.', supportRoles:[] },
-    { label:'شكوى', enabled:false, color:'Secondary', emoji:'📢', openMessage:'نأسف لما تمر به. سنعمل على حل مشكلتك فوراً.', supportRoles:[] },
-  ];
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// MATRIX CANVAS
-// ═══════════════════════════════════════════════════════════════
-(function initMatrix() {
-  const canvas = document.getElementById('matrix-canvas');
-  const ctx = canvas.getContext('2d');
-  const FS = 16, WAVE_RES = 4, MAX_RIPPLES = 40;
-  const CHARS = '0123456789×÷∆Σ∏√∞≈≠≤≥∫∂αβγθφψω';
-  const rand = n => Math.random() * n;
-  const randChar = () => CHARS[Math.floor(Math.random() * CHARS.length)];
-  let W, H, dpr, cols=[], wavePoints=[], ripples=[], waterSurface;
-  let lastTime=0;
- 
-  function createCol(i, scatter) {
-    const len = 12 + Math.floor(rand(20));
-    const chars = Array.from({length:len+5}, ()=>({c:randChar(), t:rand(3), r:.5+rand(2)}));
-    let y = scatter ? (Math.random()<.7 ? rand(waterSurface + len*FS) - len*FS*.3 : -len*FS - rand(H*.5)) : -len*FS*rand(.3);
-    return { x:i*FS, y, speed:1.2+rand(2.5), len, chars, active:scatter?Math.random()<.8:Math.random()<.7, delay:0, opacity:.6+rand(.4), hit:false };
-  }
- 
-  function init() {
-    waterSurface = H * .78;
-    const n = Math.floor(W/FS);
-    cols = Array.from({length:n},(_,i)=>createCol(i,true));
-    wavePoints = Array.from({length:Math.ceil(W/WAVE_RES)+1}, ()=>({y:0,vy:0}));
-  }
- 
-  function resize() {
-    dpr = Math.min(window.devicePixelRatio||1,2);
-    W = window.innerWidth; H = window.innerHeight;
-    canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
-    canvas.style.width=W+'px'; canvas.style.height=H+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    init();
-  }
- 
-  function spawnRipple(x,y) {
-    if(ripples.length>=MAX_RIPPLES) ripples.shift();
-    ripples.push({x,y,r:0,max:30+rand(50),spd:20+rand(30),life:1,decay:.3+rand(.2)});
-  }
-  function disturb(x,f) {
-    const idx=Math.floor(x/WAVE_RES), sp=3;
-    for(let i=-sp;i<=sp;i++){const wi=idx+i;if(wi>=0&&wi<wavePoints.length) wavePoints[wi].vy+=f*(1-Math.abs(i)/(sp+1));}
-  }
- 
-  function render(ts) {
-    const dt=Math.min((ts-(lastTime||ts))/1000,.05); lastTime=ts;
-    const t=ts/1000;
-    ctx.fillStyle='#0a080f'; ctx.fillRect(0,0,W,H);
- 
-    // update cols
-    for(const col of cols) {
-      if(!col.active){col.delay-=dt;if(col.delay<=0){if(Math.random()<.7){Object.assign(col,createCol(Math.floor(col.x/FS),false),{active:true});}else col.delay=.3+rand(1.5);}continue;}
-      const py=col.y; col.y+=col.speed*dt*60;
-      for(const c of col.chars){c.t-=dt;if(c.t<=0){c.c=randChar();c.t=c.r;}}
-      if(!col.hit&&col.y>=waterSurface&&py<waterSurface){col.hit=true;spawnRipple(col.x+FS*.5,waterSurface);disturb(col.x+FS*.5,-2-rand(3));}
-      if(col.y-col.len*FS>waterSurface+30){col.active=false;col.delay=.2+rand(2);}
-    }
- 
-    // update ripples
-    for(let i=ripples.length-1;i>=0;i--){const r=ripples[i];r.r+=r.spd*dt;r.life-=r.decay*dt;if(r.life<=0||r.r>r.max)ripples.splice(i,1);}
- 
-    // wave physics
-    for(const p of wavePoints){p.vy+=-0.03*p.y;p.vy*=0.97;p.y+=p.vy;}
-    for(let pass=0;pass<3;pass++){for(let i=0;i<wavePoints.length;i++){if(i>0)wavePoints[i].vy+=.25*(wavePoints[i-1].y-wavePoints[i].y);if(i<wavePoints.length-1)wavePoints[i].vy+=.25*(wavePoints[i+1].y-wavePoints[i].y);}}
- 
-    // draw cols
-    ctx.font=`${FS}px "Fira Code",monospace`; ctx.textAlign='center'; ctx.textBaseline='top';
-    for(const col of cols) {
-      if(!col.active) continue;
-      for(let j=0;j<col.len;j++){
-        const cy=col.y-j*FS;
-        if(cy>waterSurface||cy<-FS) continue;
-        let br = j===0?1:j===1?.9:j<4?.75-(j-2)*.08:Math.max(0,.6*(1-j/col.len));
-        const dw=waterSurface-cy; if(dw<FS*3) br*=Math.max(0,dw/(FS*3));
-        br*=col.opacity; if(br<.02) continue;
-        const [r,g,b]=j===0?[255,220,255]:j<3?[220,140,230]:[180,100,200];
-        ctx.fillStyle=`rgba(${r},${g},${b},${br})`;
-        if(j===0){ctx.shadowColor='rgba(220,140,255,.6)';ctx.shadowBlur=8;}
-        ctx.fillText(col.chars[j%col.chars.length].c, col.x+FS*.5, cy);
-        if(j===0) ctx.shadowBlur=0;
-      }
-    }
- 
-    // water fill
-    const wg=ctx.createLinearGradient(0,waterSurface,0,H);
-    wg.addColorStop(0,'rgba(18,12,22,.6)'); wg.addColorStop(1,'rgba(10,8,15,.95)');
-    ctx.fillStyle=wg; ctx.fillRect(0,waterSurface-2,W,H-waterSurface+2);
- 
-    // waterline
-    ctx.beginPath();
-    for(let x=0;x<=W;x+=WAVE_RES){
-      const idx=Math.floor(x/WAVE_RES);
-      const wy=idx<wavePoints.length?wavePoints[idx].y:0;
-      const amb=Math.sin(x*.01+t*.8)*1.5+Math.sin(x*.023+t*.5);
-      const py=waterSurface+wy+amb;
-      x===0?ctx.moveTo(x,py):ctx.lineTo(x,py);
-    }
-    ctx.strokeStyle='rgba(180,120,220,.25)'; ctx.lineWidth=1.5; ctx.stroke();
- 
-    // ripples
-    for(const r of ripples){
-      const a=r.life*.3;
-      for(let ring=0;ring<3;ring++){
-        const rr=r.r-ring*8; if(rr<=0) continue;
-        ctx.beginPath(); ctx.ellipse(r.x,r.y+ring*2,rr,rr*.3,0,0,Math.PI*2);
-        ctx.strokeStyle=`rgba(180,120,220,${a*(1-ring*.3)})`; ctx.lineWidth=1-ring*.2; ctx.stroke();
-      }
-    }
-    requestAnimationFrame(render);
-  }
- 
-  window.addEventListener('resize',resize);
-  canvas.addEventListener('click',e=>{
-    disturb(e.clientX,-4-rand(3));spawnRipple(e.clientX,waterSurface);
-    const ci=Math.floor(e.clientX/FS);
-    for(let d=-1;d<=1;d++){if(cols[ci+d])Object.assign(cols[ci+d],{active:true,y:e.clientY,speed:2.5+rand(2),hit:false});}
-  });
-  resize();
-  requestAnimationFrame(render);
-})();
- 
-// ═══════════════════════════════════════════════════════════════
-// NAV
-// ═══════════════════════════════════════════════════════════════
-window.addEventListener('scroll',()=>{
-  document.getElementById('main-nav').classList.toggle('scrolled', window.scrollY > 60);
-});
-document.addEventListener('click', e => {
-  if(!e.target.closest('.nav-dropdown-wrap')) closeDropdown();
-});
-function toggleDropdown(){document.getElementById('settings-dropdown').classList.toggle('open');}
-function closeDropdown(){document.getElementById('settings-dropdown').classList.remove('open');}
- 
-function setTheme(name, bg, primary) {
-  document.documentElement.style.setProperty('--bg', bg);
-  document.documentElement.style.setProperty('--primary', primary);
-  document.documentElement.style.setProperty('--primary-h', primary);
-  closeDropdown();
-  showToast(`تم تغيير الثيم بنجاح ✓`, 'success');
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// VIEWS
-// ═══════════════════════════════════════════════════════════════
-function showView(id) {
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  const showNav = id !== 'hero-view';
-  document.getElementById('nav-user-area').style.display = showNav ? 'flex' : 'none';
-  window.scrollTo(0,0);
-}
-function goHome() {
-  if(state.token) showView('guilds-view');
-  else showView('hero-view');
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// LOADING
-// ═══════════════════════════════════════════════════════════════
-function showLoading(){document.getElementById('loading-overlay').classList.add('show');}
-function hideLoading(){document.getElementById('loading-overlay').classList.remove('show');}
- 
-// ═══════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════
-function loginWithDiscord() {
-  const stateArr = new Uint8Array(16);
-  crypto.getRandomValues(stateArr);
-  const oauthState = Array.from(stateArr, d=>d.toString(16).padStart(2,'0')).join('');
-  sessionStorage.setItem('oauth_state', oauthState);
-  const redirect = encodeURIComponent(window.location.origin + window.location.pathname);
-  window.location.href = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${redirect}&response_type=code&scope=identify%20guilds&state=${oauthState}`;
-}
- 
-function logout() {
-  localStorage.removeItem('discord_token');
-  state.token = null; state.user = null; state.guilds = [];
-  closeDropdown();
-  showView('hero-view');
-  showToast('تم تسجيل الخروج بنجاح', 'info');
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// DEMO DATA (for preview without real backend)
-// ═══════════════════════════════════════════════════════════════
-function loadDemoData() {
-  state.user = { id:'123456789', username:'المستخدم التجريبي', avatar:null };
-  state.guilds = [
-    { id:'111', name:'سيرفر الدعم الفني', icon:null, owner:true, isAdmin:true },
-    { id:'222', name:'مجتمع الألعاب', icon:null, owner:false, isAdmin:true },
-    { id:'333', name:'سيرفر البرمجة', icon:null, owner:false, isAdmin:false },
-    { id:'444', name:'نادي الرياضة', icon:null, owner:false, isAdmin:false },
-  ];
-  updateUserUI();
-  renderGuilds();
-  showView('guilds-view');
-}
- 
-function updateUserUI() {
-  const u = state.user;
-  if(!u) return;
-  const avatarUrl = u.avatar
-    ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png`
-    : 'https://cdn.discordapp.com/embed/avatars/0.png';
-  document.getElementById('nav-avatar').src = avatarUrl;
-  document.getElementById('nav-username').textContent = u.username;
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// GUILDS
-// ═══════════════════════════════════════════════════════════════
-function fetchGuilds() {
-  if(!state.token) { showToast('يرجى تسجيل الدخول أولاً', 'error'); showView('hero-view'); return; }
-  if(WORKER_URL.includes('122007aboudiii') || !WORKER_URL.startsWith('http')) {
-    showToast('⚠️ Worker URL غير معدّل — عدّل الرابط في الكود', 'error');
-    return;
-  }
-  showLoading();
-  fetch(`${WORKER_URL}/guilds`, { headers:{ Authorization:`Bearer ${state.token}` } })
-    .then(r=>r.json())
-    .then(data=>{
-      if(data.user){ state.user = data.user; updateUserUI(); }
-      if(data.guilds){ state.guilds = data.guilds; renderGuilds(); }
-      showView('guilds-view');
-    })
-    .catch(()=>{ showToast('تعذّر الاتصال بالخادم — تأكد من Worker URL','error'); })
-    .finally(hideLoading);
-}
- 
-function renderGuilds() {
-  const grid = document.getElementById('guilds-grid');
-  const empty = document.getElementById('guilds-empty');
-  if(state.guilds.length === 0){ grid.innerHTML=''; empty.style.display='flex'; return; }
-  empty.style.display='none';
-  grid.innerHTML = state.guilds.map(g => {
-    const initial = (g.name[0]||'?').toUpperCase();
-    const iconHtml = g.icon
-      ? `<img src="https://cdn.discordapp.com/icons/${g.id}/${g.icon}.webp?size=256" alt="" onerror="this.parentElement.textContent='${initial}'"/>`
-      : initial;
-    const ownerBadge = g.owner ? `<span class="badge badge-owner">👑 مالك</span>` : '';
-    const adminBadge = !g.owner && g.isAdmin ? `<span class="badge badge-admin">🛡️ مشرف</span>` : '';
-    const canEdit = g.isAdmin;
-    const actionBtn = canEdit
-      ? `<button class="btn-small btn-primary" onclick="openSettings(event,'${g.id}')">⚙️ إعدادات</button>`
-      : `<button class="btn-small btn-outline" onclick="addBot(event,'${g.id}')">➕ إضافة بوت</button>`;
-    return `
-      <div class="guild-card${!canEdit?' no-bot':''}" onclick="canEdit&&openSettings(event,'${g.id}')">
-        <div class="guild-top">
-          <div class="guild-icon">${iconHtml}</div>
-          <span class="guild-name">${esc(g.name)}</span>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${ownerBadge}${adminBadge}</div>
-        <div class="guild-footer">
-          <span style="font-size:12px;color:var(--muted)">${canEdit?'✅ البوت موجود':'❌ البوت غير موجود'}</span>
-          ${actionBtn}
-        </div>
-      </div>`;
-  }).join('');
-}
- 
-function addBot(e, guildId) {
-  e.stopPropagation();
-  const oauthState = Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
-  sessionStorage.setItem('oauth_state', oauthState);
-  const redirect = encodeURIComponent(window.location.origin + window.location.pathname);
-  window.location.href = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&integration_type=0&scope=bot&guild_id=${guildId}&disable_guild_select=true&redirect_uri=${redirect}&response_type=code&state=${oauthState}`;
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════════════════════════════════
-function openSettings(e, guildId) {
-  if(e) e.stopPropagation();
-  const guild = state.guilds.find(g=>g.id===guildId);
-  if(!guild || !guild.isAdmin){ showToast('لا يمكنك التعديل على السيرفر و أنت عضو','error'); return; }
-  state.currentGuild = guild;
-  updateSettingsHeader();
 
-  if(WORKER_URL.includes('122007aboudiii') || !WORKER_URL.startsWith('http')) {
-    showToast('⚠️ Worker URL غير معدّل — عدّل الرابط في الكود', 'error');
-    return;
-  }
+    <!-- Footer -->
+    <div class="footer">
+        <p>صُنع بكل بواسطة علاوي و ياسين</p>
+        <p style="margin-top: 5px; font-size: 0.8rem;">جميع الحقوق محفوظة © 2026</p>
+    </div>
 
-  showLoading();
- 
-  // Try to load from API, fallback to demo
-  Promise.all([
-    fetch(`${WORKER_URL}/guild/${guildId}/channels`, {headers:{Authorization:`Bearer ${state.token}`}}),
-    fetch(`${WORKER_URL}/guild/${guildId}/roles`,    {headers:{Authorization:`Bearer ${state.token}`}}),
-    fetch(`${WORKER_URL}/guild/${guildId}/ticket-settings`, {headers:{Authorization:`Bearer ${state.token}`}}),
-  ])
-  .then(async ([cr,rr,sr]) => {
-    const cd = await cr.json(); const rd = await rr.json(); const sd = await sr.json();
-    state.channels = cd.channels || [];
-    state.roles    = rd.roles    || [];
-    if(sd) {
-      state.selectedRoles = sd.support_roles || [];
-      if(sd.full_settings) {
-        try {
-          const p = typeof sd.full_settings==='string'?JSON.parse(sd.full_settings):sd.full_settings;
-          if(p?.ticketOptions) state.ticketOptions = p.ticketOptions;
-          state.settings = p;
-        } catch(e){}
-      }
-    }
-  })
-  .catch(()=>{
-    showToast('تعذّر الاتصال بالخادم','error');
-  })
-  .finally(()=>{ hideLoading(); renderSettingsData(); showView('settings-view'); });
-}
- 
-function loadDemoChannelsRoles() {
-  state.channels = [
-    {id:'ch1',name:'general',type:0},{id:'ch2',name:'ticket-logs',type:0},
-    {id:'ch3',name:'ratings',type:0},{id:'ch4',name:'support',type:0},
-    {id:'cat1',name:'TICKETS',type:4},{id:'cat2',name:'ARCHIVE',type:4},
-  ];
-  state.roles = [
-    {id:'r1',name:'@admin',color:0xc026d3},{id:'r2',name:'@support',color:0x2563eb},
-    {id:'r3',name:'@mod',color:0x16a34a},{id:'r4',name:'@helper',color:0xeab308},
-  ];
-}
- 
-function updateSettingsHeader() {
-  const g = state.currentGuild;
-  if(!g) return;
-  const icon = document.getElementById('s-guild-icon');
-  if(g.icon) {
-    icon.innerHTML = `<img src="https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128" alt="" style="width:100%;height:100%;object-fit:cover"/>`;
-  } else {
-    icon.textContent = (g.name[0]||'?').toUpperCase();
-  }
-  document.getElementById('s-guild-name').textContent = g.name;
-  document.getElementById('s-guild-id').textContent = 'ID: ' + g.id;
-}
- 
-function renderSettingsData() {
-  renderChannelSelects();
-  renderRoles();
-  renderTicketOptions();
-  renderPanelPreview();
-  // prefill saved settings
-  if(state.settings) {
-    const s = state.settings;
-    if(s.categoryId)     setSelectVal('catSelect',s.categoryId);
-    if(s.logChannelId)   setSelectVal('logSelect',s.logChannelId);
-    if(s.ratingChannelId)setSelectVal('ratingSelect',s.ratingChannelId);
-    if(s.panelChannelId) setSelectVal('panelChannelSelect',s.panelChannelId);
-    if(s.panelTitle)     document.getElementById('panelTitleInput').value = s.panelTitle;
-    if(s.panelDesc)      document.getElementById('panelDescInput').value  = s.panelDesc;
-    if(s.logEnabled    !== undefined) document.getElementById('logToggle').checked    = s.logEnabled;
-    if(s.ratingEnabled !== undefined) document.getElementById('ratingToggle').checked = s.ratingEnabled;
-  }
-}
- 
-function setSelectVal(id, val) {
-  const sel = document.getElementById(id);
-  for(const opt of sel.options) if(opt.value===val) { sel.value=val; return; }
-}
- 
-function renderChannelSelects() {
-  const texts  = state.channels.filter(c=>c.type===0);
-  const cats   = state.channels.filter(c=>c.type===4);
-  const makeOpts = (list, dflt) => `<option value="">${dflt}</option>` +
-    list.map(c=>`<option value="${esc(c.id)}">#${esc(c.name)}</option>`).join('');
- 
-  document.getElementById('catSelect').innerHTML           = makeOpts(cats,'-- اختر كاتيجوري --');
-  document.getElementById('logSelect').innerHTML           = makeOpts(texts,'-- اختر قناة --');
-  document.getElementById('ratingSelect').innerHTML        = makeOpts(texts,'-- اختر قناة --');
-  document.getElementById('panelChannelSelect').innerHTML  = makeOpts(texts,'-- اختر قناة --');
-}
- 
-function renderRoles() {
-  const wrap = document.getElementById('roles-wrap');
-  if(!state.roles.length){ wrap.innerHTML='<span style="color:var(--muted);font-size:13px">لا توجد أدوار</span>'; return; }
-  wrap.innerHTML = state.roles.map(r => {
-    const hex = '#' + (r.color||0x6b7280).toString(16).padStart(6,'0');
-    const sel = state.selectedRoles.includes(r.id);
-    return `<div class="role-chip${sel?' selected':''}" onclick="toggleRole('${r.id}',this)">
-      <div class="role-dot" style="background:${hex}"></div>
-      ${esc(r.name)}
-    </div>`;
-  }).join('');
-}
- 
-function toggleRole(id, el) {
-  const idx = state.selectedRoles.indexOf(id);
-  if(idx>=0) state.selectedRoles.splice(idx,1); else state.selectedRoles.push(id);
-  el.classList.toggle('selected');
-}
- 
-const COLORS = ['Primary','Danger','Success','Secondary'];
-const COLOR_MAP = {'Primary':'#5865F2','Danger':'#ED4245','Success':'#57F287','Secondary':'#99aab5'};
- 
-function renderTicketOptions() {
-  const list = document.getElementById('options-list');
-  list.innerHTML = state.ticketOptions.map((opt,i) => `
-    <div class="option-item${opt.enabled?' enabled':''}" id="optItem${i}">
-      <div class="option-header" onclick="toggleOption(${i})">
-        <span class="option-emoji">${esc(opt.emoji||'🎫')}</span>
-        <span class="option-name">${esc(opt.label)}</span>
-        <label class="toggle" onclick="event.stopPropagation()">
-          <input type="checkbox" ${opt.enabled?'checked':''} onchange="optToggle(${i},this)"/>
-          <div class="toggle-track"><div class="toggle-thumb"></div></div>
-        </label>
-      </div>
-      <div class="option-body" id="optBody${i}">
-        <div class="grid-2">
-          <div class="field-wrap">
-            <label class="form-label">اسم الزر</label>
-            <input class="form-input" value="${esc(opt.label)}" maxlength="80"
-              oninput="updateOpt(${i},'label',this.value)"/>
-          </div>
-          <div class="field-wrap">
-            <label class="form-label">الإيموجي</label>
-            <input class="form-input" value="${esc(opt.emoji||'')}" maxlength="5"
-              oninput="updateOpt(${i},'emoji',this.value)"/>
-          </div>
-        </div>
-        <div class="field-wrap">
-          <label class="form-label">رسالة الترحيب</label>
-          <textarea class="form-textarea" maxlength="1000"
-            oninput="updateOpt(${i},'openMessage',this.value)">${esc(opt.openMessage||'')}</textarea>
-        </div>
-        <div class="field-wrap">
-          <label class="form-label">لون الزر</label>
-          <div class="color-swatches">
-            ${COLORS.map(c=>`
-              <div class="color-swatch${opt.color===c?' selected':''}"
-                style="background:${COLOR_MAP[c]}"
-                title="${c}" onclick="setOptColor(${i},'${c}',this)"></div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    </div>`).join('');
-}
- 
-function toggleOption(i) {
-  document.getElementById('optBody'+i).classList.toggle('open');
-}
-function optToggle(i, el) {
-  state.ticketOptions[i].enabled = el.checked;
-  document.getElementById('optItem'+i).classList.toggle('enabled', el.checked);
-  renderPanelPreview();
-}
-function updateOpt(i, key, val) {
-  state.ticketOptions[i][key] = val;
-  if(key==='label'||key==='emoji') renderPanelPreview();
-}
-function setOptColor(i, color, el) {
-  state.ticketOptions[i].color = color;
-  el.closest('.color-swatches').querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
-  el.classList.add('selected');
-}
- 
-function renderPanelPreview() {
-  const title = document.getElementById('panelTitleInput')?.value || 'تذاكر الدعم الفني';
-  const desc  = document.getElementById('panelDescInput')?.value  || 'لفتح تذكرة الرجاء الضغط على الخيار المناسب من الأزرار بالأسفل.';
-  document.getElementById('preview-title').textContent = title;
-  document.getElementById('preview-desc').textContent  = desc;
-  const btns = document.getElementById('preview-btns');
-  btns.innerHTML = state.ticketOptions.filter(o=>o.enabled).map(o=>`
-    <button style="padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;
-      background:${COLOR_MAP[o.color]||'#5865F2'};color:#fff">
-      ${o.emoji||''} ${o.label}
-    </button>`).join('');
-}
- 
-document.getElementById('panelTitleInput')?.addEventListener('input', renderPanelPreview);
-document.getElementById('panelDescInput')?.addEventListener('input',  renderPanelPreview);
- 
-// ═══════════════════════════════════════════════════════════════
-// TABS
-// ═══════════════════════════════════════════════════════════════
-function switchTab(id, btn) {
-  ['main','options','panel'].forEach(t=>{
-    document.getElementById('tab-'+t).style.display = t===id?'block':'none';
-  });
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  btn.classList.add('active');
-  if(id==='panel') renderPanelPreview();
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// SAVE / SEND
-// ═══════════════════════════════════════════════════════════════
-function saveSettings() {
-  if(!state.currentGuild){ showToast('لا يوجد سيرفر مختار','error'); return; }
-  const title = document.getElementById('panelTitleInput').value.trim();
-  const desc  = document.getElementById('panelDescInput').value.trim();
-  if(title.length>256){ showToast('العنوان طويل جداً (أقصى 256 حرف)','error'); return; }
-  if(desc.length>2000) { showToast('الوصف طويل جداً (أقصى 2000 حرف)','error'); return; }
-  for(const o of state.ticketOptions){
-    if(o.enabled&&(!o.label||o.label.length<1||o.label.length>80)){
-      showToast(`الخيار "${o.label||'بدون اسم'}" يحتاج اسماً صحيحاً!`,'error'); return;
-    }
-  }
-  if(!state.token){ showToast('تم الحفظ! (وضع تجريبي — لا يوجد اتصال)','success'); return; }
-  showLoading();
-  const payload = {
-    category_id:   document.getElementById('catSelect').value||null,
-    log_channel_id:document.getElementById('logSelect').value||null,
-    support_roles: state.selectedRoles,
-    full_settings: JSON.stringify({
-      ticketOptions: state.ticketOptions,
-      logChannelId:  document.getElementById('logSelect').value||null,
-      logEnabled:    document.getElementById('logToggle').checked,
-      ratingChannelId:document.getElementById('ratingSelect').value||null,
-      ratingEnabled: document.getElementById('ratingToggle').checked,
-      categoryId:    document.getElementById('catSelect').value||null,
-      panelTitle:    title, panelDesc: desc,
-      panelChannelId:document.getElementById('panelChannelSelect').value||null,
-    }),
-  };
-  fetch(`${WORKER_URL}/guild/${state.currentGuild.id}/ticket-settings`,{
-    method:'POST',headers:{Authorization:`Bearer ${state.token}`,'Content-Type':'application/json'},
-    body:JSON.stringify(payload)
-  }).then(r=>showToast(r.ok?'تم حفظ التغييرات بنجاح!':'فشل في الحفظ',r.ok?'success':'error'))
-    .catch(()=>showToast('خطأ في الاتصال بالخادم','error'))
-    .finally(hideLoading);
-}
- 
-function sendPanel() {
-  const ch = document.getElementById('panelChannelSelect').value;
-  if(!ch){ showToast('يرجى تحديد القناة المستهدفة','error'); return; }
-  if(!state.token){ showToast('تم الإرسال! (وضع تجريبي)','success'); return; }
-  showLoading();
-  const title = document.getElementById('panelTitleInput').value.trim()||'تذاكر الدعم الفني';
-  const desc  = document.getElementById('panelDescInput').value.trim()||'لفتح تذكرة الرجاء الضغط على الخيار المناسب من الأزرار بالأسفل.';
-  fetch(`${WORKER_URL}/guild/${state.currentGuild.id}/send-panel`,{
-    method:'POST',headers:{Authorization:`Bearer ${state.token}`,'Content-Type':'application/json'},
-    body:JSON.stringify({channel_id:ch,title,description:desc,options:state.ticketOptions.filter(o=>o.enabled)})
-  }).then(r=>showToast(r.ok?'تم إرسال اللوحة بنجاح!':'فشل في إرسال اللوحة',r.ok?'success':'error'))
-    .catch(()=>showToast('خطأ في الاتصال بالخادم','error'))
-    .finally(hideLoading);
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// TOAST
-// ═══════════════════════════════════════════════════════════════
-function showToast(msg, type='info') {
-  const icons = {success:'✅',error:'❌',warning:'⚠️',info:'ℹ️'};
-  const wrap = document.getElementById('toast-wrap');
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.innerHTML = `<span>${icons[type]||''}</span><span>${esc(msg)}</span>`;
-  wrap.appendChild(t);
-  setTimeout(()=>{ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 3500);
-}
- 
-// ═══════════════════════════════════════════════════════════════
-// OAUTH CALLBACK
-// ═══════════════════════════════════════════════════════════════
-(function handleOAuth() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  const error = params.get('error');
-  const errorDesc = params.get('error_description');
-  const retState = params.get('state');
-  const savedState = sessionStorage.getItem('oauth_state');
-  const guildId = params.get('guild_id');
+    <script>
+        // Create particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 50; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.top = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 15 + 's';
+            particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+            particle.style.width = (2 + Math.random() * 4) + 'px';
+            particle.style.height = particle.style.width;
+            particlesContainer.appendChild(particle);
+        }
 
-  // إذا Discord رجّع خطأ
-  if(error) {
-    showToast('خطأ من Discord: ' + (errorDesc || error), 'error');
-    window.history.replaceState({},'', window.location.pathname);
-    showView('hero-view');
-    return;
-  }
- 
-  if(code && !state.token) {
-    if(!savedState || retState !== savedState){
-      showToast('فشل التحقق من الجلسة — يرجى إعادة المحاولة','error');
-      sessionStorage.removeItem('oauth_state');
-      return;
-    }
-    sessionStorage.removeItem('oauth_state');
-    showLoading();
-    fetch(`${WORKER_URL}/auth/callback`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({code, redirectUri:window.location.origin + window.location.pathname})
-    }).then(r=>r.json()).then(data=>{
-      if(data.access_token){
-        state.token = data.access_token;
-        localStorage.setItem('discord_token', state.token);
-        window.history.replaceState({},'',(guildId?`/guilds?guild_id=${guildId}`:'/guilds'));
-        fetchGuilds();
-      } else {
-        showToast('فشل تسجيل الدخول: '+(data.error||'خطأ غير معروف'),'error');
-      }
-    }).catch(()=>showToast('خطأ في الاتصال بخادم Worker','error')).finally(hideLoading);
-    return;
-  }
- 
-  // Initial load
-  if(state.token) { fetchGuilds(); }
-  else { showView('hero-view'); }
-})();
- 
-// ═══════════════════════════════════════════════════════════════
-// UTILS
-// ═══════════════════════════════════════════════════════════════
-function esc(str) {
-  if(!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
- 
+        // Scroll reveal animation
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
 
-</script>
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+
+                    // Animate progress bars
+                    const progressBars = entry.target.querySelectorAll('.progress-fill');
+                    progressBars.forEach(bar => {
+                        setTimeout(() => {
+                            bar.style.width = bar.getAttribute('data-width');
+                        }, 500);
+                    });
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // 3D tilt effect on cards
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+
+                const rotateX = (y - centerY) / 20;
+                const rotateY = (centerX - x) / 20;
+
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-10px) scale(1.02)`;
+            });
+
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) translateY(0) scale(1)';
+            });
+        });
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"c312e939cc0147e2b894b25cd79582ff","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
- 
